@@ -24,13 +24,24 @@
       "$path": "src/StarterPack"
     },
     "StarterPlayer": {
+      "$className": "StarterPlayer",
+    
       "$properties": {
         "AvatarJointUpgrade": "Enabled",
         "CameraMaxZoomDistance": 128.0,
         "CharacterBreakJointsOnDeath": false,
         "CharacterUseJumpPower": false
       },
-      "$path": "src/StarterPlayer"
+    
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
+      },
+    
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$path": "src/StarterPlayer/StarterCharacterScripts"
+      }
     }
   },
   "syncbackRules": {
