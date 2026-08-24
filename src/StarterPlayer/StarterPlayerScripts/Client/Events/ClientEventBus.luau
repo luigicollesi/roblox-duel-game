@@ -5,6 +5,7 @@ local ClientEventBus = {}
 export type EventName =
 	"IntentRejected"
 | "Effect"
+| "AnimationPreview"
 
 export type Handler =
 	(any) -> ()
@@ -24,7 +25,6 @@ function ClientEventBus.subscribe(
 	eventName: EventName,
 	handler: Handler
 ): Disconnect
-
 	local bucket =
 		listeners[eventName]
 
@@ -70,7 +70,7 @@ function ClientEventBus.publish(
 
 	for _, listener in ipairs(
 		bucket
-		) do
+	) do
 		table.insert(
 			snapshot,
 			listener
@@ -79,7 +79,7 @@ function ClientEventBus.publish(
 
 	for _, listener in ipairs(
 		snapshot
-		) do
+	) do
 		if not listener.connected then
 			continue
 		end

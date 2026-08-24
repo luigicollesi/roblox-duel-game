@@ -3,6 +3,9 @@
 local Players =
 	game:GetService("Players")
 
+local RunService =
+	game:GetService("RunService")
+
 local player: Player =
 	assert(
 		Players.LocalPlayer,
@@ -11,8 +14,6 @@ local player: Player =
 
 local ReplicatedStorage =
 	game:GetService("ReplicatedStorage")
-
-
 
 local characterInstance =
 	script.Parent
@@ -42,6 +43,11 @@ local CharacterStateTypes =
 local AnimationStates =
 	require(
 		Shared.Animation.AnimationStates
+	)
+
+local AnimationCatalog =
+	require(
+		Shared.Animation.AnimationCatalog
 	)
 
 local CombatConfig =
@@ -100,7 +106,7 @@ local AnimationDebug =
 	)
 
 -- =========================================================
--- PREDICTION CONTROLLER
+-- PLAYER SCRIPTS
 -- =========================================================
 
 local playerScripts =
@@ -108,9 +114,13 @@ local playerScripts =
 		"PlayerScripts"
 	)
 
+local clientFolder =
+	playerScripts:WaitForChild(
+		"Client"
+	)
+
 local predictionModule =
-	playerScripts
-	:WaitForChild("Client")
+	clientFolder
 	:WaitForChild("State")
 	:WaitForChild(
 		"PredictionController"
@@ -126,8 +136,25 @@ local PredictionController =
 		predictionModule
 	)
 
+local eventBusModule =
+	clientFolder
+	:WaitForChild("Events")
+	:WaitForChild(
+		"ClientEventBus"
+	)
+
+assert(
+	eventBusModule:IsA("ModuleScript"),
+	"ClientEventBus must be ModuleScript"
+)
+
+local ClientEventBus =
+	require(
+		eventBusModule
+	)
+
 -- =========================================================
--- HUMANOID / ANIMATOR
+-- HUMANOID / ROOT / ANIMATOR
 -- =========================================================
 
 local humanoidInstance =
@@ -142,6 +169,19 @@ assert(
 
 local humanoid: Humanoid =
 	humanoidInstance
+
+local rootInstance =
+	character:WaitForChild(
+		"HumanoidRootPart"
+	)
+
+assert(
+	rootInstance:IsA("BasePart"),
+	"HumanoidRootPart missing"
+)
+
+local root: BasePart =
+	rootInstance
 
 local animatorInstance =
 	humanoid:WaitForChild(
@@ -192,7 +232,7 @@ local function setDefaultAnimateEnabled(
 
 	if not animateInstance:IsA(
 		"BaseScript"
-		) then
+	) then
 		return
 	end
 
@@ -336,6 +376,40 @@ local function getDesiredDuration(
 	return nil
 end
 
+local function getNaturalDuration(
+	state: AnimationState
+): number
+
+	local track =
+		registry.get(
+			state
+		)
+
+	local definition =
+		AnimationCatalog.get(
+			state
+		)
+
+	local speed =
+		math.abs(
+			definition.speed
+		)
+
+	if speed <= 0 then
+		speed = 1
+	end
+
+	if track.Length > 0 then
+		return track.Length
+			/ speed
+	end
+
+	-- Segurança para o raro caso de Length ainda estar 0
+	-- no primeiro frame depois do preload.
+	return getDesiredDuration(state)
+		or 0.5
+end
+
 -- =========================================================
 -- CUSTOM MODE
 -- =========================================================
@@ -357,7 +431,7 @@ local function setCustomMode(
 		)
 
 		director.stopUnmanaged(
-			0.03
+			0.02
 		)
 
 		debugger.setEnabled(
@@ -374,7 +448,7 @@ local function setCustomMode(
 	)
 
 	director.stopAll(
-		0.08
+		0.06
 	)
 
 	setDefaultAnimateEnabled(
@@ -383,8 +457,151 @@ local function setCustomMode(
 end
 
 -- =========================================================
+-- LOCAL PHYSICAL PRESENTATION
+-- =========================================================
+
+local LANDING_MIN_AIR_TIME = 0.06
+
+local normalLandingDuration =
+	MovementConfig.NORMAL_LANDING_TICKS
+	* CombatConfig.FIXED_DT
+
+local wasGrounded =
+	humanoid.FloorMaterial
+	~= Enum.Material.Air
+
+local airborneStartedAt:
+	number? = nil
+
+local landingUntil = 0
+
+local function updateGroundContact(
+	now: number
+)
+	local grounded =
+		humanoid.FloorMaterial
+		~= Enum.Material.Air
+
+	if grounded == wasGrounded then
+		return
+	end
+
+	if grounded then
+		local airborneDuration = 0
+
+		if airborneStartedAt ~= nil then
+			airborneDuration =
+				now
+				- airborneStartedAt
+		end
+
+		if airborneDuration
+			>= LANDING_MIN_AIR_TIME
+		then
+			landingUntil =
+				now
+				+ normalLandingDuration
+		end
+
+		airborneStartedAt = nil
+	else
+		airborneStartedAt =
+			now
+
+		landingUntil = 0
+	end
+
+	wasGrounded =
+		grounded
+end
+
+local function resolvePhysicalAnimation(
+	now: number
+): (AnimationState, number?)
+
+	local humanoidState =
+		humanoid:GetState()
+
+	if humanoidState
+		== Enum.HumanoidStateType.Jumping
+	then
+		return "Jump", nil
+	end
+
+	local grounded =
+		humanoid.FloorMaterial
+		~= Enum.Material.Air
+
+	if not grounded then
+		local verticalVelocity =
+			root.AssemblyLinearVelocity.Y
+
+		if verticalVelocity > 0.5 then
+			return "Jump", nil
+		end
+
+		return "Fall", nil
+	end
+
+	if now < landingUntil then
+		return "LandNormal",
+			normalLandingDuration
+	end
+
+	if humanoid.MoveDirection.Magnitude
+		> MovementConfig.WALKING_SPEED_THRESHOLD
+	then
+		return "Walk", nil
+	end
+
+	return "Idle", nil
+end
+
+-- =========================================================
+-- LOCAL ANIMATION PREVIEW
+-- =========================================================
+
+local previewState:
+	AnimationState? = nil
+
+local previewRequestedDuration:
+	number? = nil
+
+local previewUntil = 0
+local previewGeneration = 0
+local previewRestartPending = false
+
+local PREVIEWABLE:
+	{[string]: boolean} = {
+	Q1 = true,
+	Q2 = true,
+	Q3 = true,
+	Q3Reverse = true,
+
+	Strong = true,
+	LandAttack = true,
+
+	DashF = true,
+	DashB = true,
+	DashL = true,
+	DashR = true,
+}
+
+local function clearPreview()
+	previewGeneration += 1
+
+	previewState = nil
+	previewRequestedDuration = nil
+	previewUntil = 0
+	previewRestartPending = false
+end
+
+-- =========================================================
 -- PRESENTATION STATE
 -- =========================================================
+
+local latestState:
+	CharacterState? = nil
 
 local previousActionSequence:
 	number? = nil
@@ -392,10 +609,68 @@ local previousActionSequence:
 local previousStance:
 	string? = nil
 
-local function applyState(
-	state: CharacterState
-)
+local function resolvePresentation(
+	state: CharacterState,
+	now: number
+): (AnimationState?, number?)
+
+	if state.status == "Dead" then
+		return nil, nil
+	end
+
 	if state.stance == "Inactive" then
+		return nil, nil
+	end
+
+	-- Start nunca deve ser atropelado por preview local.
+	if state.stance == "Starting" then
+		return "Start",
+			getDesiredDuration(
+				"Start"
+			)
+	end
+
+	-- Ação autoritativa de duelo tem prioridade máxima.
+	if state.action ~= nil then
+		local resolved =
+			AnimationResolver.resolve(
+				state
+			)
+
+		if resolved == nil then
+			return nil, nil
+		end
+
+		return resolved,
+			getDesiredDuration(
+				resolved
+			)
+	end
+
+	-- Preview local existe somente fora de duelo.
+	if previewState ~= nil
+		and now < previewUntil
+	then
+		return previewState,
+			previewRequestedDuration
+	end
+
+	return resolvePhysicalAnimation(
+		now
+	)
+end
+
+local function refreshPresentation()
+	local state =
+		latestState
+
+	if state == nil then
+		return
+	end
+
+	if state.stance == "Inactive" then
+		clearPreview()
+
 		setCustomMode(
 			false
 		)
@@ -413,14 +688,29 @@ local function applyState(
 		true
 	)
 
-	local animationState =
-		AnimationResolver.resolve(
-			state
+	local now =
+		os.clock()
+
+	updateGroundContact(
+		now
+	)
+
+	if previewState ~= nil
+		and now >= previewUntil
+	then
+		clearPreview()
+	end
+
+	local animationState,
+		duration =
+		resolvePresentation(
+			state,
+			now
 		)
 
 	if animationState == nil then
 		director.stopAll(
-			0.05
+			0.04
 		)
 
 		previousActionSequence =
@@ -432,7 +722,8 @@ local function applyState(
 		return
 	end
 
-	local restart = false
+	local restart =
+		previewRestartPending
 
 	if state.actionSequence ~= nil
 		and state.actionSequence
@@ -450,13 +741,12 @@ local function applyState(
 
 	director.play(
 		animationState,
-
-		getDesiredDuration(
-			animationState
-		),
-
+		duration,
 		restart
 	)
+
+	previewRestartPending =
+		false
 
 	previousActionSequence =
 		state.actionSequence
@@ -469,14 +759,15 @@ end
 -- EFFECTIVE STATE
 -- =========================================================
 
-local disconnect =
+local predictionDisconnect =
 	PredictionController.subscribe(
 		function(
 			current: CharacterState
 		)
-			applyState(
+			latestState =
 				current
-			)
+
+			refreshPresentation()
 		end
 	)
 
@@ -484,10 +775,112 @@ local initial =
 	PredictionController.get()
 
 if initial ~= nil then
-	applyState(
+	latestState =
 		initial
-	)
+
+	refreshPresentation()
 end
+
+-- =========================================================
+-- PREVIEW EVENT
+-- =========================================================
+
+local previewDisconnect =
+	ClientEventBus.subscribe(
+		"AnimationPreview",
+
+		function(data: any)
+			if type(data) ~= "table" then
+				return
+			end
+
+			local stateName =
+				data.state
+
+			if type(stateName) ~= "string" then
+				return
+			end
+
+			if PREVIEWABLE[stateName]
+				~= true
+			then
+				return
+			end
+
+			local requestedDuration:
+				number? = nil
+
+			if type(data.durationSeconds)
+				== "number"
+				and data.durationSeconds > 0
+			then
+				requestedDuration =
+					data.durationSeconds
+			end
+
+			local state =
+				stateName :: AnimationState
+
+			previewGeneration += 1
+
+			local token =
+				previewGeneration
+
+			previewState =
+				state
+
+			previewRequestedDuration =
+				requestedDuration
+
+			local holdDuration =
+				requestedDuration
+				or getNaturalDuration(
+					state
+				)
+
+			previewUntil =
+				os.clock()
+				+ holdDuration
+
+			previewRestartPending =
+				true
+
+			refreshPresentation()
+
+			task.delay(
+				holdDuration,
+
+				function()
+					if previewGeneration
+						~= token
+					then
+						return
+					end
+
+					previewState = nil
+					previewRequestedDuration = nil
+					previewUntil = 0
+
+					refreshPresentation()
+				end
+			)
+		end
+	)
+
+-- =========================================================
+-- FRAME-LOCAL LOCOMOTION / AIR
+-- =========================================================
+
+local renderConnection =
+	RunService.RenderStepped:Connect(
+		function()
+			if latestState == nil then
+				return
+			end
+
+			refreshPresentation()
+		end
+	)
 
 -- =========================================================
 -- CLEANUP
@@ -502,7 +895,10 @@ local function cleanup()
 
 	cleaned = true
 
-	disconnect()
+	predictionDisconnect()
+	previewDisconnect()
+
+	renderConnection:Disconnect()
 
 	debugger.destroy()
 	director.destroy()

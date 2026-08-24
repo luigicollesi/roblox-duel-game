@@ -71,6 +71,11 @@ local AirController =
 		clientFolder.Movement.AirController
 	)
 
+local LocalBoxController =
+	require(
+		clientFolder.Animation.LocalBoxController
+	)
+
 local VFXController =
 	require(
 		clientFolder.Effects.VFXController
@@ -197,6 +202,16 @@ local dash =
 		locomotion
 	)
 
+-- Preview local usado somente quando ainda não existe duelo.
+-- Ele serve para validar animações/movimento sem criar uma
+-- segunda implementação de dano.
+local localBox =
+	LocalBoxController.new(
+		player,
+		PredictionController,
+		locomotion
+	)
+
 -- =========================================================
 -- EFFECTS
 -- =========================================================
@@ -218,6 +233,7 @@ local camera =
 
 local function shouldCaptureGameplay():
 	boolean
+
 	local state =
 		PredictionController.get()
 
@@ -225,19 +241,27 @@ local function shouldCaptureGameplay():
 		return false
 	end
 
-	if state.duelId == nil then
-		return false
-	end
-
 	if state.stance ~= "Active" then
 		return false
 	end
 
-	if state.status == "Dead" then
+	if state.status ~= "Normal" then
 		return false
 	end
 
+	-- Animação/movimento podem ser testados em stance
+	-- mesmo antes de um duelo existir.
 	return true
+end
+
+local function isInDuel():
+	boolean
+
+	local state =
+		PredictionController.get()
+
+	return state ~= nil
+		and state.duelId ~= nil
 end
 
 local function requestStance()
@@ -257,6 +281,42 @@ local function requestStance()
 	)
 end
 
+local function requestLight()
+	if isInDuel() then
+		combat.requestLight()
+		return
+	end
+
+	localBox.requestLight()
+end
+
+local function requestStrong()
+	if isInDuel() then
+		combat.requestStrong()
+		return
+	end
+
+	localBox.requestStrong()
+end
+
+local function requestDash()
+	if isInDuel() then
+		dash.requestDash()
+		return
+	end
+
+	localBox.requestDash()
+end
+
+local function requestJump()
+	if isInDuel() then
+		air.requestJump()
+		return
+	end
+
+	localBox.requestJump()
+end
+
 local input =
 	InputController.new(
 		shouldCaptureGameplay,
@@ -266,16 +326,16 @@ local input =
 				requestStance,
 
 			light =
-				combat.requestLight,
+				requestLight,
 
 			strong =
-				combat.requestStrong,
+				requestStrong,
 
 			dash =
-				dash.requestDash,
+				requestDash,
 
 			jump =
-				air.requestJump,
+				requestJump,
 		}
 	)
 
@@ -291,8 +351,6 @@ camera.start()
 
 network.start()
 
--- Input por último para não enviar nada antes
--- de toda a infraestrutura estar pronta.
 input.start()
 
 print(
@@ -306,6 +364,8 @@ print(
 script.Destroying:Connect(
 	function()
 		input.stop()
+
+		localBox.destroy()
 
 		network.stop()
 
