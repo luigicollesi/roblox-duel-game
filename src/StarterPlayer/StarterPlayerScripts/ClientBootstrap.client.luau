@@ -91,6 +91,11 @@ local CameraController =
 		clientFolder.Effects.CameraController
 	)
 
+local StanceCameraController =
+	require(
+		clientFolder.Camera.StanceCameraController
+	)
+
 -- =========================================================
 -- REMOTES
 -- =========================================================
@@ -227,6 +232,12 @@ local camera =
 		localUserId
 	)
 
+local stanceCamera =
+	StanceCameraController.new(
+		player,
+		PredictionController
+	)
+
 -- =========================================================
 -- INPUT
 -- =========================================================
@@ -318,7 +329,13 @@ local function requestDash()
 		return
 	end
 
-	localBox.requestDash()
+	-- Só avisa o servidor se o dash local realmente começou.
+	-- O servidor usa esse aviso exclusivamente para VFX.
+	if localBox.requestDash() then
+		network.sendIntent(
+			"Dash"
+		)
+	end
 end
 
 local function requestJump()
@@ -361,6 +378,7 @@ reconciliation.start()
 vfx.start()
 sound.start()
 camera.start()
+stanceCamera.start()
 
 network.start()
 
@@ -384,6 +402,7 @@ script.Destroying:Connect(
 
 		reconciliation.stop()
 
+		stanceCamera.stop()
 		camera.stop()
 		sound.stop()
 		vfx.stop()

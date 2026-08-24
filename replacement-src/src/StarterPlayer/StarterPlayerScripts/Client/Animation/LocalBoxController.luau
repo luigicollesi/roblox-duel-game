@@ -82,7 +82,7 @@ local LocalBoxController = {}
 export type Controller = {
 	requestLight: () -> (),
 	requestStrong: () -> (),
-	requestDash: () -> (),
+	requestDash: () -> boolean,
 	requestJump: () -> (),
 
 	isBusy: () -> boolean,
@@ -544,18 +544,20 @@ function LocalBoxController.new(
 		)
 	end
 
-	local function requestDash()
+	local function requestDash():
+		boolean
+
 		if not canUseLocalBox()
 			or isBusy()
 		then
-			return
+			return false
 		end
 
 		local now =
 			os.clock()
 
 		if now < dashReadyAt then
-			return
+			return false
 		end
 
 		local humanoid, root =
@@ -564,15 +566,15 @@ function LocalBoxController.new(
 		if humanoid == nil
 			or root == nil
 		then
-			return
+			return false
 		end
 
 		if isAirborne(humanoid) then
-			return
+			return false
 		end
 
 		if root.Anchored then
-			return
+			return false
 		end
 
 		local action =
@@ -602,8 +604,6 @@ function LocalBoxController.new(
 				* CombatConfig.FIXED_DT
 			)
 
-		-- O dash também é uma ação comprometida:
-		-- não pode ser interrompido até seu timing acabar.
 		beginBusy(
 			duration,
 			false
@@ -613,6 +613,8 @@ function LocalBoxController.new(
 			action,
 			duration
 		)
+
+		return true
 	end
 
 	-- =====================================================

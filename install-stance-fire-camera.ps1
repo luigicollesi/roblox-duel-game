@@ -8,7 +8,7 @@ if (-not (Test-Path ".\replacement-src\src")) {
     throw "Pasta replacement-src\src nao encontrada ao lado deste script."
 }
 
-Write-Host "Aplicando refinamentos de ataque, jump, land e dash..."
+Write-Host "Aplicando stance fire, dash fire trail e combat camera..."
 
 Copy-Item `
     ".\replacement-src\src\*" `
@@ -17,11 +17,13 @@ Copy-Item `
     -Force
 
 $required = @(
-    ".\src\StarterPlayer\StarterPlayerScripts\Client\Animation\LocalBoxController.luau",
-    ".\src\StarterPlayer\StarterPlayerScripts\Client\Events\ClientEventBus.luau",
+    ".\src\ServerScriptService\Server\Effects\StanceFireService.luau",
+    ".\src\StarterPlayer\StarterPlayerScripts\Client\Camera\StanceCameraController.luau",
+    ".\src\ServerScriptService\Server\Events\EventTypes.luau",
+    ".\src\ServerScriptService\Server\Network\InputGateway.luau",
+    ".\src\ServerScriptService\ServerBootstrap.server.luau",
     ".\src\StarterPlayer\StarterPlayerScripts\ClientBootstrap.client.luau",
-    ".\src\StarterPlayer\StarterCharacterScripts\CharacterPresentation.client.luau",
-    ".\src\ReplicatedStorage\Shared\Movement\DashConfig.luau"
+    ".\src\StarterPlayer\StarterPlayerScripts\Client\Animation\LocalBoxController.luau"
 )
 
 foreach ($path in $required) {
@@ -43,5 +45,5 @@ Write-Host "===== git status --short ====="
 git status --short
 
 Write-Host ""
-Write-Host "[OK] Refinamentos aplicados."
+Write-Host "[OK] Stance VFX + combat camera aplicados."
 Write-Host "Agora rode: rojo serve"
