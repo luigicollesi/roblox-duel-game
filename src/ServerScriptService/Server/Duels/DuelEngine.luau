@@ -199,6 +199,10 @@ type DuelSession = {
 	air: AirApi,
 	dash: DashApi,
 
+	-- Cooldown autoritativo do Strong por jogador.
+	strongReadyTickByUser:
+		{[number]: number},
+
 	stanceActivated: boolean,
 }
 
@@ -400,6 +404,15 @@ function DuelEngine.new(
 				state.comboStep
 			)
 
+		local currentTick =
+			session.clock.getTick()
+
+		if kind == "Strong" then
+			session.strongReadyTickByUser[userId] =
+				currentTick
+				+ CombatConfig.STRONG_COOLDOWN_TICKS
+		end
+
 		session.attack.start(
 			userId,
 
@@ -407,7 +420,7 @@ function DuelEngine.new(
 			sequence,
 			resolved.nextComboStep,
 
-			session.clock.getTick()
+			currentTick
 		)
 	end
 
@@ -476,6 +489,28 @@ function DuelEngine.new(
 			end
 
 			return
+		end
+
+		-- Strong tem cooldown proprio. Ataques no ar ja
+		-- retornaram acima como LandAttack e nao consomem
+		-- nem dependem deste cooldown.
+		if intentKind == "Strong" then
+			local readyTick =
+				session.strongReadyTickByUser[userId]
+
+			if readyTick ~= nil
+				and session.clock.getTick()
+				< readyTick
+			then
+				publishReject(
+					session,
+					userId,
+					sequence,
+					"StrongCooldown"
+				)
+
+				return
+			end
 		end
 
 		local resolution =
@@ -933,6 +968,12 @@ function DuelEngine.new(
 					state.comboStep
 				)
 
+			if pending.kind == "Strong" then
+				session.strongReadyTickByUser[userId] =
+					tick
+					+ CombatConfig.STRONG_COOLDOWN_TICKS
+			end
+
 			session.attack.chain(
 				userId,
 
@@ -1226,6 +1267,8 @@ function DuelEngine.new(
 
 			air = air,
 			dash = dash,
+
+			strongReadyTickByUser = {},
 
 			-- O DuelService agora cria a sessao apenas
 			-- quando os dois jogadores ja estao em Active.

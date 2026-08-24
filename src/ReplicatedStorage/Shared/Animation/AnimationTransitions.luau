@@ -22,10 +22,13 @@ local SPECIFIC:
 	["Fall>LandNormal"] = 0.035,
 	["Fall>LandAttack"] = 0.02,
 
-	["Q1>Q2"] = 0.02,
-	["Q2>Q3"] = 0.02,
-	["Q3>Q3Reverse"] = 0.015,
-	["Q3Reverse>Q2"] = 0.02,
+	-- O próximo golpe começa alguns milissegundos antes do
+	-- término visual do anterior. Estes fades fazem a troca
+	-- ser contínua sem passar por Idle.
+	["Q1>Q2"] = 0.03,
+	["Q2>Q3"] = 0.03,
+	["Q3>Q3Reverse"] = 0.028,
+	["Q3Reverse>Q2"] = 0.03,
 }
 
 local function makeKey(

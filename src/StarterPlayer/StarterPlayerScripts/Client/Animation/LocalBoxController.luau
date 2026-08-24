@@ -101,12 +101,25 @@ function LocalBoxController.new(
 		LightCombo.getResetStep()
 
 	local dashReadyAt = 0
+	local strongReadyAt = 0
 
 	local landingAttackArmed = false
 	local wasAirborne = false
 
 	local busyUntil = 0
 	local busyGeneration = 0
+	local busyKind: string? = nil
+
+	-- Apenas UM clique futuro fica preparado.
+	local lightBuffered = false
+
+	-- Começamos a próxima animação ligeiramente antes do fim
+	-- da atual para o crossfade acontecer sem um frame de Idle.
+	local LIGHT_CHAIN_OVERLAP = 0.035
+
+	local STRONG_COOLDOWN_SECONDS =
+		CombatConfig.STRONG_COOLDOWN_TICKS
+		* CombatConfig.FIXED_DT
 
 	local movementLockedHumanoid:
 		Humanoid? = nil
@@ -274,18 +287,24 @@ function LocalBoxController.new(
 	local function clearBusy()
 		busyGeneration += 1
 		busyUntil = 0
+		busyKind = nil
 
 		restoreMovement()
 	end
 
 	local function beginBusy(
 		durationSeconds: number,
-		lockMovement: boolean
-	)
+		lockMovement: boolean,
+		kind: string,
+		onFinished: (() -> ())?
+	): number
 		busyGeneration += 1
 
 		local token =
 			busyGeneration
+
+		busyKind =
+			kind
 
 		busyUntil =
 			os.clock()
@@ -324,9 +343,17 @@ function LocalBoxController.new(
 				end
 
 				busyUntil = 0
+				busyKind = nil
+
 				restoreMovement()
+
+				if onFinished ~= nil then
+					onFinished()
+				end
 			end
 		)
+
+		return token
 	end
 
 	-- =====================================================
@@ -349,121 +376,202 @@ function LocalBoxController.new(
 		) * CombatConfig.FIXED_DT
 	end
 
-	-- =====================================================
-	-- COMBO
-	-- =====================================================
+\t-- =====================================================
+\t-- COMBO
+\t-- =====================================================
 
-	local function resetCombo()
-		comboStep =
-			LightCombo.getResetStep()
-	end
+\tlocal function resetCombo()
+\t\tcomboStep =
+\t\t\tLightCombo.getResetStep()
 
-	-- =====================================================
-	-- LIGHT
-	-- =====================================================
+\t\tlightBuffered =
+\t\t\tfalse
+\tend
 
-	local function requestLight()
-		if not canUseLocalBox()
-			or isBusy()
-		then
-			return
-		end
+\tlocal function startLightAttack()
+\t\tlocal action =
+\t\t\tLightCombo.getAction(
+\t\t\t\tcomboStep
+\t\t\t)
 
-		local humanoid =
-			select(
-				1,
-				getHumanoidAndRoot()
-			)
+\t\tcomboStep =
+\t\t\tLightCombo.getNextStep(
+\t\t\t\tcomboStep
+\t\t\t)
 
-		if humanoid == nil then
-			return
-		end
+\t\tlocal duration =
+\t\t\tgetAttackDuration(
+\t\t\t\taction
+\t\t\t)
 
-		-- Clique durante Jump/Fall não inicia Q1/Q2/Q3:
-		-- arma o ataque Land para quando tocar o chão.
-		if isAirborne(humanoid) then
-			setLandingAttackArmed(
-				true
-			)
+\t\tlightBuffered =
+\t\t\tfalse
 
-			return
-		end
+\t\tlocal token: number = 0
 
-		local action =
-			LightCombo.getAction(
-				comboStep
-			)
+\t\ttoken =
+\t\t\tbeginBusy(
+\t\t\t\tduration,
+\t\t\t\ttrue,
+\t\t\t\t"Light",
 
-		comboStep =
-			LightCombo.getNextStep(
-				comboStep
-			)
+\t\t\t\tfunction()
+\t\t\t\t\t-- A cadeia terminou sem um próximo golpe.
+\t\t\t\t\t-- O próximo clique deve começar novamente em Q1.
+\t\t\t\t\tresetCombo()
+\t\t\t\tend
+\t\t\t)
 
-		local duration =
-			getAttackDuration(
-				action
-			)
+\t\tpreview(
+\t\t\taction,
+\t\t\tduration
+\t\t)
 
-		-- Ataques não podem ser cancelados por outro ataque,
-		-- dash ou jump. Movimento voluntário também fica
-		-- travado até o término da animação.
-		beginBusy(
-			duration,
-			true
-		)
+\t\tlocal chainDelay =
+\t\t\tmath.max(
+\t\t\t\t0,
+\t\t\t\tduration
+\t\t\t\t\t- LIGHT_CHAIN_OVERLAP
+\t\t\t)
 
-		preview(
-			action,
-			duration
-		)
-	end
+\t\ttask.delay(
+\t\t\tchainDelay,
+
+\t\t\tfunction()
+\t\t\t\tif destroyed then
+\t\t\t\t\treturn
+\t\t\t\tend
+
+\t\t\t\tif busyGeneration
+\t\t\t\t\t~= token
+\t\t\t\tthen
+\t\t\t\t\treturn
+\t\t\t\tend
+
+\t\t\t\tif busyKind ~= "Light"
+\t\t\t\t\tor not lightBuffered
+\t\t\t\tthen
+\t\t\t\t\treturn
+\t\t\t\tend
+
+\t\t\t\t-- Troca direta de animação, sem passar por Idle.
+\t\t\t\tstartLightAttack()
+\t\t\tend
+\t\t)
+\tend
+
+\t-- =====================================================
+\t-- LIGHT
+\t-- =====================================================
+
+\tlocal function requestLight()
+\t\tif not canUseLocalBox() then
+\t\t\treturn
+\t\tend
+
+\t\tlocal humanoid =
+\t\t\tselect(
+\t\t\t\t1,
+\t\t\t\tgetHumanoidAndRoot()
+\t\t\t)
+
+\t\tif humanoid == nil then
+\t\t\treturn
+\t\tend
+
+\t\t-- Mouse1 durante um ataque Light não cancela o atual.
+\t\t-- Ele ocupa um único slot de buffer para o próximo.
+\t\tif isBusy() then
+\t\t\tif busyKind == "Light" then
+\t\t\t\tlightBuffered =
+\t\t\t\t\ttrue
+
+\t\t\t\tlocal remaining =
+\t\t\t\t\tbusyUntil
+\t\t\t\t\t- os.clock()
+
+\t\t\t\tif remaining
+\t\t\t\t\t<= LIGHT_CHAIN_OVERLAP
+\t\t\t\tthen
+\t\t\t\t\tstartLightAttack()
+\t\t\t\tend
+\t\t\tend
+
+\t\t\treturn
+\t\tend
+
+\t\tif isAirborne(humanoid) then
+\t\t\tsetLandingAttackArmed(
+\t\t\t\ttrue
+\t\t\t)
+
+\t\t\treturn
+\t\tend
+
+\t\tstartLightAttack()
+\tend
 
 	-- =====================================================
 	-- STRONG
 	-- =====================================================
 
-	local function requestStrong()
-		if not canUseLocalBox()
-			or isBusy()
-		then
-			return
-		end
+\tlocal function requestStrong()
+\t\tif not canUseLocalBox()
+\t\t\tor isBusy()
+\t\tthen
+\t\t\treturn
+\t\tend
 
-		local humanoid =
-			select(
-				1,
-				getHumanoidAndRoot()
-			)
+\t\tlocal humanoid =
+\t\t\tselect(
+\t\t\t\t1,
+\t\t\t\tgetHumanoidAndRoot()
+\t\t\t)
 
-		if humanoid == nil then
-			return
-		end
+\t\tif humanoid == nil then
+\t\t\treturn
+\t\tend
 
-		resetCombo()
+\t\t-- RMB no ar continua armando LandAttack e não
+\t\t-- consome o cooldown do Strong.
+\t\tif isAirborne(humanoid) then
+\t\t\tsetLandingAttackArmed(
+\t\t\t\ttrue
+\t\t\t)
 
-		if isAirborne(humanoid) then
-			setLandingAttackArmed(
-				true
-			)
+\t\t\treturn
+\t\tend
 
-			return
-		end
+\t\tlocal now =
+\t\t\tos.clock()
 
-		local duration =
-			getAttackDuration(
-				"Strong"
-			)
+\t\tif now < strongReadyAt then
+\t\t\treturn
+\t\tend
 
-		beginBusy(
-			duration,
-			true
-		)
+\t\tstrongReadyAt =
+\t\t\tnow
+\t\t\t+ STRONG_COOLDOWN_SECONDS
 
-		preview(
-			"Strong",
-			duration
-		)
-	end
+\t\tresetCombo()
+
+\t\tlocal duration =
+\t\t\tgetAttackDuration(
+\t\t\t\t"Strong"
+\t\t\t)
+
+\t\tbeginBusy(
+\t\t\tduration,
+\t\t\ttrue,
+\t\t\t"Strong",
+\t\t\tnil
+\t\t)
+
+\t\tpreview(
+\t\t\t"Strong",
+\t\t\tduration
+\t\t)
+\tend
 
 	-- =====================================================
 	-- DASH
@@ -606,7 +714,9 @@ function LocalBoxController.new(
 
 		beginBusy(
 			duration,
-			false
+			false,
+			"Dash",
+			nil
 		)
 
 		preview(
@@ -721,7 +831,9 @@ function LocalBoxController.new(
 
 					beginBusy(
 						duration,
-						true
+						true,
+						"LandAttack",
+						nil
 					)
 
 					preview(
@@ -743,6 +855,7 @@ function LocalBoxController.new(
 		resetCombo()
 
 		dashReadyAt = 0
+		strongReadyAt = 0
 
 		if landingAttackArmed then
 			setLandingAttackArmed(

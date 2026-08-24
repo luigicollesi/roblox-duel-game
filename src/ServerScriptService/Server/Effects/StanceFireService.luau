@@ -265,14 +265,14 @@ function StanceFireService.new(
 
 		emitter.Lifetime =
 			NumberRange.new(
-				0.22,
-				0.42
+				0.3,
+				0.55
 			)
 
 		emitter.Speed =
 			NumberRange.new(
-				0.8,
-				2.2
+				1.35,
+				3.4
 			)
 
 		emitter.SpreadAngle =
@@ -419,43 +419,49 @@ function StanceFireService.new(
 				HAND_PARTS[partName]
 				== true
 
-			createEmitter(
-				attachment,
-				STANCE_EMITTER_NAME,
-				if isHand then 34 else 26,
-				if isHand then 0.3 else 0.25,
-				if isHand then 1.15 else 0.9,
-				true
-			)
+			local emitter =
+				createEmitter(
+					attachment,
+					STANCE_EMITTER_NAME,
+					if isHand then 78 else 56,
+					if isHand then 0.46 else 0.34,
+					if isHand then 1.85 else 1.38,
+					true
+				)
 
-			if isHand then
-				local light =
-					Instance.new(
-						"PointLight"
-					)
+			emitter.LightEmission = 1
+			emitter.SpreadAngle =
+				Vector2.new(
+					55,
+					55
+				)
 
-				light.Name =
-					STANCE_LIGHT_NAME
+			local light =
+				Instance.new(
+					"PointLight"
+				)
 
-				light.Color =
-					Color3.fromRGB(
-						255,
-						105,
-						25
-					)
+			light.Name =
+				STANCE_LIGHT_NAME
 
-				light.Brightness =
-					1.35
+			light.Color =
+				Color3.fromRGB(
+					255,
+					100,
+					18
+				)
 
-				light.Range =
-					7
+			light.Brightness =
+				if isHand then 2.6 else 1.25
 
-				light.Shadows =
-					false
+			light.Range =
+				if isHand then 10 else 6.5
 
-				light.Parent =
-					instance
-			end
+			light.Shadows =
+				false
+
+			light.Parent =
+				instance
 		end
 	end
 

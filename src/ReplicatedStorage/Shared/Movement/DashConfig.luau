@@ -20,15 +20,14 @@ DashConfig.DEFAULT_DIRECTION = DEFAULT_DIRECTION
 -- 10 ticks @ 60 Hz ~= 0,167 s.
 DashConfig.DURATION_TICKS = 10
 
--- 30 ticks @ 60 Hz = 0,5 s.
-DashConfig.COOLDOWN_TICKS = 30
+-- 180 ticks @ 60 Hz = 3 s.
+DashConfig.COOLDOWN_TICKS = 180
 
 -- Velocidade horizontal alvo produzida pelo impulso.
 --
--- 72 studs/s deixa o deslocamento aproximadamente 50%
--- mais forte que a versão anterior (48), mantendo o mesmo
--- timing curto de dash de jogo de luta.
-DashConfig.HORIZONTAL_SPEED = 72
+-- 96 studs/s aumenta a distância sem alongar a animação:
+-- o dash continua curto e explosivo, mas cobre mais espaço.
+DashConfig.HORIZONTAL_SPEED = 96
 
 -- Abaixo deste valor consideramos que o personagem
 -- não está tentando andar em nenhuma direção.

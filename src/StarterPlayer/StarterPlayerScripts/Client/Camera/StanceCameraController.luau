@@ -25,7 +25,13 @@ export type Controller = {
 }
 
 -- Third-person combat camera.
-local CAMERA_DISTANCE = 7.5
+local DEFAULT_CAMERA_DISTANCE = 7.5
+local MIN_CAMERA_DISTANCE = 4.5
+local MAX_CAMERA_DISTANCE = 14
+
+local ZOOM_STEP = 1.15
+local ZOOM_SMOOTH_SPEED = 16
+
 local FOCUS_HEIGHT = 2.25
 
 local YAW_SENSITIVITY = 0.0026
@@ -52,6 +58,15 @@ function StanceCameraController.new(
 
 	local yaw = 0
 	local pitch = 0
+
+	local targetCameraDistance =
+		DEFAULT_CAMERA_DISTANCE
+
+	local currentCameraDistance =
+		DEFAULT_CAMERA_DISTANCE
+
+	local inputChangedConnection:
+		RBXScriptConnection? = nil
 
 	local savedMouseBehavior:
 		Enum.MouseBehavior? = nil
@@ -294,10 +309,45 @@ function StanceCameraController.new(
 	end
 
 	-- =====================================================
+	-- ZOOM
+	-- =====================================================
+
+	local function onInputChanged(
+		input: InputObject
+	)
+		if not active then
+			return
+		end
+
+		if input.UserInputType
+			~= Enum.UserInputType.MouseWheel
+		then
+			return
+		end
+
+		local wheel =
+			input.Position.Z
+
+		if math.abs(wheel) <= 0.001 then
+			return
+		end
+
+		targetCameraDistance =
+			math.clamp(
+				targetCameraDistance
+					- wheel * ZOOM_STEP,
+				MIN_CAMERA_DISTANCE,
+				MAX_CAMERA_DISTANCE
+			)
+	end
+
+	-- =====================================================
 	-- RENDER
 	-- =====================================================
 
-	local function onRenderStep()
+	local function onRenderStep(
+		deltaTime: number
+	)
 		if not active then
 			return
 		end
@@ -395,10 +445,24 @@ function StanceCameraController.new(
 				0
 			)
 
+		local zoomAlpha =
+			1
+			- math.exp(
+				-ZOOM_SMOOTH_SPEED
+					* deltaTime
+			)
+
+		currentCameraDistance +=
+			(
+				targetCameraDistance
+					- currentCameraDistance
+			)
+			* zoomAlpha
+
 		local desiredPosition =
 			focusPosition
 			- forward
-				* CAMERA_DISTANCE
+				* currentCameraDistance
 
 		local raycastParams =
 			RaycastParams.new()
@@ -453,6 +517,11 @@ function StanceCameraController.new(
 
 		started = true
 
+		inputChangedConnection =
+			UserInputService.InputChanged:Connect(
+				onInputChanged
+			)
+
 		disconnect =
 			prediction.subscribe(
 				function()
@@ -485,6 +554,11 @@ function StanceCameraController.new(
 		if disconnect ~= nil then
 			disconnect()
 			disconnect = nil
+		end
+
+		if inputChangedConnection ~= nil then
+			inputChangedConnection:Disconnect()
+			inputChangedConnection = nil
 		end
 
 		disable()

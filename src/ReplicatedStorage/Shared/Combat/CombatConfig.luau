@@ -38,6 +38,9 @@ CombatConfig.LATEST_BUFFERED_INPUT_WINS = true
 CombatConfig.STRONG_RESETS_LIGHT_COMBO = true
 CombatConfig.LAND_ATTACK_RESETS_LIGHT_COMBO = true
 
+-- 60 ticks @ 60 Hz = 1 s entre golpes Strong.
+CombatConfig.STRONG_COOLDOWN_TICKS = 60
+
 CombatConfig.LOCK_MOVEMENT_DURING_ATTACK = true
 
 return CombatConfig
