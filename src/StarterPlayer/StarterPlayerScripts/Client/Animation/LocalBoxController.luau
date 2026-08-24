@@ -377,201 +377,201 @@ function LocalBoxController.new(
 	end
 
 \t-- =====================================================
-\t-- COMBO
-\t-- =====================================================
+	-- COMBO
+	-- =====================================================
 
-\tlocal function resetCombo()
-\t\tcomboStep =
-\t\t\tLightCombo.getResetStep()
+	local function resetCombo()
+		comboStep =
+			LightCombo.getResetStep()
 
-\t\tlightBuffered =
-\t\t\tfalse
-\tend
+		lightBuffered =
+			false
+	end
 
-\tlocal function startLightAttack()
-\t\tlocal action =
-\t\t\tLightCombo.getAction(
-\t\t\t\tcomboStep
-\t\t\t)
+	local function startLightAttack()
+		local action =
+			LightCombo.getAction(
+				comboStep
+			)
 
-\t\tcomboStep =
-\t\t\tLightCombo.getNextStep(
-\t\t\t\tcomboStep
-\t\t\t)
+		comboStep =
+			LightCombo.getNextStep(
+				comboStep
+			)
 
-\t\tlocal duration =
-\t\t\tgetAttackDuration(
-\t\t\t\taction
-\t\t\t)
+		local duration =
+			getAttackDuration(
+				action
+			)
 
-\t\tlightBuffered =
-\t\t\tfalse
+		lightBuffered =
+			false
 
-\t\tlocal token: number = 0
+		local token: number = 0
 
-\t\ttoken =
-\t\t\tbeginBusy(
-\t\t\t\tduration,
-\t\t\t\ttrue,
-\t\t\t\t"Light",
+		token =
+			beginBusy(
+				duration,
+				true,
+				"Light",
 
-\t\t\t\tfunction()
-\t\t\t\t\t-- A cadeia terminou sem um próximo golpe.
-\t\t\t\t\t-- O próximo clique deve começar novamente em Q1.
-\t\t\t\t\tresetCombo()
-\t\t\t\tend
-\t\t\t)
+				function()
+					-- A cadeia terminou sem um próximo golpe.
+					-- O próximo clique deve começar novamente em Q1.
+					resetCombo()
+				end
+			)
 
-\t\tpreview(
-\t\t\taction,
-\t\t\tduration
-\t\t)
+		preview(
+			action,
+			duration
+		)
 
-\t\tlocal chainDelay =
-\t\t\tmath.max(
-\t\t\t\t0,
-\t\t\t\tduration
-\t\t\t\t\t- LIGHT_CHAIN_OVERLAP
-\t\t\t)
+		local chainDelay =
+			math.max(
+				0,
+				duration
+					- LIGHT_CHAIN_OVERLAP
+			)
 
-\t\ttask.delay(
-\t\t\tchainDelay,
+		task.delay(
+			chainDelay,
 
-\t\t\tfunction()
-\t\t\t\tif destroyed then
-\t\t\t\t\treturn
-\t\t\t\tend
+			function()
+				if destroyed then
+					return
+				end
 
-\t\t\t\tif busyGeneration
-\t\t\t\t\t~= token
-\t\t\t\tthen
-\t\t\t\t\treturn
-\t\t\t\tend
+				if busyGeneration
+					~= token
+				then
+					return
+				end
 
-\t\t\t\tif busyKind ~= "Light"
-\t\t\t\t\tor not lightBuffered
-\t\t\t\tthen
-\t\t\t\t\treturn
-\t\t\t\tend
+				if busyKind ~= "Light"
+					or not lightBuffered
+				then
+					return
+				end
 
-\t\t\t\t-- Troca direta de animação, sem passar por Idle.
-\t\t\t\tstartLightAttack()
-\t\t\tend
-\t\t)
-\tend
+				-- Troca direta de animação, sem passar por Idle.
+				startLightAttack()
+			end
+		)
+	end
 
-\t-- =====================================================
-\t-- LIGHT
-\t-- =====================================================
+	-- =====================================================
+	-- LIGHT
+	-- =====================================================
 
-\tlocal function requestLight()
-\t\tif not canUseLocalBox() then
-\t\t\treturn
-\t\tend
+	local function requestLight()
+		if not canUseLocalBox() then
+			return
+		end
 
-\t\tlocal humanoid =
-\t\t\tselect(
-\t\t\t\t1,
-\t\t\t\tgetHumanoidAndRoot()
-\t\t\t)
+		local humanoid =
+			select(
+				1,
+				getHumanoidAndRoot()
+			)
 
-\t\tif humanoid == nil then
-\t\t\treturn
-\t\tend
+		if humanoid == nil then
+			return
+		end
 
-\t\t-- Mouse1 durante um ataque Light não cancela o atual.
-\t\t-- Ele ocupa um único slot de buffer para o próximo.
-\t\tif isBusy() then
-\t\t\tif busyKind == "Light" then
-\t\t\t\tlightBuffered =
-\t\t\t\t\ttrue
+		-- Mouse1 durante um ataque Light não cancela o atual.
+		-- Ele ocupa um único slot de buffer para o próximo.
+		if isBusy() then
+			if busyKind == "Light" then
+				lightBuffered =
+					true
 
-\t\t\t\tlocal remaining =
-\t\t\t\t\tbusyUntil
-\t\t\t\t\t- os.clock()
+				local remaining =
+					busyUntil
+					- os.clock()
 
-\t\t\t\tif remaining
-\t\t\t\t\t<= LIGHT_CHAIN_OVERLAP
-\t\t\t\tthen
-\t\t\t\t\tstartLightAttack()
-\t\t\t\tend
-\t\t\tend
+				if remaining
+					<= LIGHT_CHAIN_OVERLAP
+				then
+					startLightAttack()
+				end
+			end
 
-\t\t\treturn
-\t\tend
+			return
+		end
 
-\t\tif isAirborne(humanoid) then
-\t\t\tsetLandingAttackArmed(
-\t\t\t\ttrue
-\t\t\t)
+		if isAirborne(humanoid) then
+			setLandingAttackArmed(
+				true
+			)
 
-\t\t\treturn
-\t\tend
+			return
+		end
 
-\t\tstartLightAttack()
-\tend
+		startLightAttack()
+	end
 
 	-- =====================================================
 	-- STRONG
 	-- =====================================================
 
-\tlocal function requestStrong()
-\t\tif not canUseLocalBox()
-\t\t\tor isBusy()
-\t\tthen
-\t\t\treturn
-\t\tend
+	local function requestStrong()
+		if not canUseLocalBox()
+			or isBusy()
+		then
+			return
+		end
 
-\t\tlocal humanoid =
-\t\t\tselect(
-\t\t\t\t1,
-\t\t\t\tgetHumanoidAndRoot()
-\t\t\t)
+		local humanoid =
+			select(
+				1,
+				getHumanoidAndRoot()
+			)
 
-\t\tif humanoid == nil then
-\t\t\treturn
-\t\tend
+		if humanoid == nil then
+			return
+		end
 
-\t\t-- RMB no ar continua armando LandAttack e não
-\t\t-- consome o cooldown do Strong.
-\t\tif isAirborne(humanoid) then
-\t\t\tsetLandingAttackArmed(
-\t\t\t\ttrue
-\t\t\t)
+		-- RMB no ar continua armando LandAttack e não
+		-- consome o cooldown do Strong.
+		if isAirborne(humanoid) then
+			setLandingAttackArmed(
+				true
+			)
 
-\t\t\treturn
-\t\tend
+			return
+		end
 
-\t\tlocal now =
-\t\t\tos.clock()
+		local now =
+			os.clock()
 
-\t\tif now < strongReadyAt then
-\t\t\treturn
-\t\tend
+		if now < strongReadyAt then
+			return
+		end
 
-\t\tstrongReadyAt =
-\t\t\tnow
-\t\t\t+ STRONG_COOLDOWN_SECONDS
+		strongReadyAt =
+			now
+			+ STRONG_COOLDOWN_SECONDS
 
-\t\tresetCombo()
+		resetCombo()
 
-\t\tlocal duration =
-\t\t\tgetAttackDuration(
-\t\t\t\t"Strong"
-\t\t\t)
+		local duration =
+			getAttackDuration(
+				"Strong"
+			)
 
-\t\tbeginBusy(
-\t\t\tduration,
-\t\t\ttrue,
-\t\t\t"Strong",
-\t\t\tnil
-\t\t)
+		beginBusy(
+			duration,
+			true,
+			"Strong",
+			nil
+		)
 
-\t\tpreview(
-\t\t\t"Strong",
-\t\t\tduration
-\t\t)
-\tend
+		preview(
+			"Strong",
+			duration
+		)
+	end
 
 	-- =====================================================
 	-- DASH
