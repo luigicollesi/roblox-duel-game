@@ -1227,7 +1227,9 @@ function DuelEngine.new(
 			air = air,
 			dash = dash,
 
-			stanceActivated = false,
+			-- O DuelService agora cria a sessao apenas
+			-- quando os dois jogadores ja estao em Active.
+			stanceActivated = true,
 		}
 
 		sessions[duelId] =

@@ -13,7 +13,6 @@ local ReplicatedStorage =
 	game:GetService("ReplicatedStorage")
 
 
-local player = Players.LocalPlayer
 
 local characterInstance =
 	script.Parent

@@ -143,7 +143,7 @@ function DuelService.new(
 	store: Store,
 	bus: Bus,
 	characters: CharacterServiceApi,
-	stance: StanceServiceApi
+	_stance: StanceServiceApi
 ): Service
 
 	local recordsById: {[string]: DuelRecord} = {}
@@ -250,7 +250,9 @@ function DuelService.new(
 			return false
 		end
 
-		if state.stance ~= "Inactive" then
+		-- O jogador precisa terminar a entrada da stance
+		-- antes de poder participar do matchmaking.
+		if state.stance ~= "Active" then
 			return false
 		end
 
@@ -381,23 +383,6 @@ function DuelService.new(
 			duelId
 		)
 
-		local stateA =
-			store.get(fighterA)
-
-		if stateA ~= nil
-			and stateA.stance ~= "Inactive"
-		then
-			stance.deactivate(fighterA)
-		end
-
-		local stateB =
-			store.get(fighterB)
-
-		if stateB ~= nil
-			and stateB.stance ~= "Inactive"
-		then
-			stance.deactivate(fighterB)
-		end
 
 		record.history.add(
 			"DuelEnded",
@@ -500,22 +485,6 @@ function DuelService.new(
 			}
 		)
 
-		local stanceAStarted =
-			stance.start(aUserId)
-
-		local stanceBStarted =
-			stance.start(bUserId)
-
-		if not stanceAStarted
-			or not stanceBStarted
-		then
-			endDuelById(
-				duelId,
-				"InvalidState"
-			)
-
-			return nil
-		end
 
 		bus.publish(
 			EventTypes.create(
@@ -568,6 +537,12 @@ function DuelService.new(
 
 		if stateA.duelId ~= duel.id
 			or stateB.duelId ~= duel.id
+		then
+			return "InvalidState"
+		end
+
+		if stateA.stance ~= "Active"
+			or stateB.stance ~= "Active"
 		then
 			return "InvalidState"
 		end
